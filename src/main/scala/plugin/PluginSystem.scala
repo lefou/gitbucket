@@ -14,6 +14,7 @@ import java.io.FileInputStream
 import java.sql.Connection
 import app.Context
 import service.RepositoryService.RepositoryInfo
+import play.twirl.api.Html
 
 /**
  * Provides extension points to plug-ins.
@@ -65,6 +66,7 @@ object PluginSystem extends PluginService {
       }
       // Add default plugin repositories
       repositoriesList += PluginRepository("central", "https://github.com/takezoe/gitbucket_plugins.git")
+      repositoriesList += PluginRepository("tr", "https://github.com/lefou/test_gitbucket_plugins.git")
     }
   }
 
@@ -161,6 +163,7 @@ object PluginSystem extends PluginService {
   def repositoryActions     : List[RepositoryAction] = pluginsMap.values.flatMap(_.repositoryActions).toList
   def globalActions         : List[Action]           = pluginsMap.values.flatMap(_.globalActions).toList
   def javaScripts           : List[JavaScript]       = pluginsMap.values.flatMap(_.javaScripts).toList
+  def renderers             : List[Renderer]         = pluginsMap.values.flatMap(_.renderers).toList
 
   // Case classes to hold plug-ins information internally in GitBucket
   case class PluginRepository(id: String, url: String)
@@ -170,6 +173,18 @@ object PluginSystem extends PluginService {
   case class RepositoryAction(method: String, path: String, security: Security, function: (HttpServletRequest, HttpServletResponse, Context, RepositoryInfo) => Any)
   case class Button(label: String, href: String)
   case class JavaScript(filter: String => Boolean, script: String)
+  object Renderer {
+    trait Render {
+      def render(filePath: List[String],
+        fileContent: String,
+        branch: String,
+        repository: service.RepositoryService.RepositoryInfo,
+        enableWikiLink: Boolean,
+        enableRefsLink: Boolean,
+        context: app.Context): Html
+    }
+  }
+  case class Renderer(suffixes: Seq[String], renderHtml: Renderer.Render)
 
   /**
    * Checks whether the plugin is updatable.

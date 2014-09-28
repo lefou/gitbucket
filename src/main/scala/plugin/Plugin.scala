@@ -15,6 +15,7 @@ trait Plugin {
   def repositoryActions     : List[RepositoryAction]
   def globalActions         : List[Action]
   def javaScripts           : List[JavaScript]
+  def renderers             : List[Renderer]
 }
 
 object PluginConnectionHolder {

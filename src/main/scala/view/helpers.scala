@@ -4,6 +4,7 @@ import java.text.SimpleDateFormat
 import play.twirl.api.Html
 import util.StringUtil
 import service.RequestCache
+import plugin.PluginSystem.Renderer
 
 /**
  * Provides helper methods for Twirl templates.
@@ -36,13 +37,22 @@ object helpers extends AvatarImageProvider with LinkConverter with RequestCache 
   def plural(count: Int, singular: String, plural: String = ""): String =
     if(count == 1) singular else if(plural.isEmpty) singular + "s" else plural
 
-  private[this] val renderersBySuffix: Seq[(String, (List[String], String, String, service.RepositoryService.RepositoryInfo, Boolean, Boolean, app.Context) => Html)] =
-    Seq(
-      ".md" -> ((filePath, fileContent, branch, repository, enableWikiLink, enableRefsLink, context) => markdown(fileContent, repository, enableWikiLink, enableRefsLink)(context)),
-      ".markdown" -> ((filePath, fileContent, branch, repository, enableWikiLink, enableRefsLink, context) => markdown(fileContent, repository, enableWikiLink, enableRefsLink)(context))
-    )
+  private[this] val builtinRenderes: List[Renderer] = List(
+    Renderer(suffixes = Seq(".md", ".markdown"), renderHtml = new Renderer.Render {
+      override def render(filePath: List[String],
+        fileContent: String,
+        branch: String,
+        repository: service.RepositoryService.RepositoryInfo,
+        enableWikiLink: Boolean,
+        enableRefsLink: Boolean,
+        context: app.Context): Html = {
+        markdown(fileContent, repository, enableWikiLink, enableRefsLink)(context)
+      }
+    }))
 
-  def renderableSuffixes: Seq[String] = renderersBySuffix.map(_._1)
+  private[this] def renderers: List[Renderer] = builtinRenderes ::: plugin.PluginSystem.renderers
+
+  def renderableSuffixes: Seq[String] = renderers.flatMap(r => r.suffixes)
 
   /**
    * Converts Markdown of Wiki pages to HTML.
@@ -56,8 +66,10 @@ object helpers extends AvatarImageProvider with LinkConverter with RequestCache 
                    enableWikiLink: Boolean, enableRefsLink: Boolean)(implicit context: app.Context): Html = {
 
     val fileNameLower = filePath.reverse.head.toLowerCase
-    renderersBySuffix.find { case (suffix, _) => fileNameLower.endsWith(suffix) } match {
-      case Some((_, handler)) => handler(filePath, fileContent, branch, repository, enableWikiLink, enableRefsLink, context)
+    val renderer = renderers.find(renderer => renderer.suffixes.find(fileNameLower.endsWith).isDefined)
+    renderer match {
+      case Some(handler) => handler.renderHtml.render(
+          filePath, fileContent, branch, repository, enableWikiLink, enableRefsLink, context)
       case None => Html(
         s"<tt>${
           fileContent.split("(\\r\\n)|\\n").map(xml.Utility.escape(_)).mkString("<br/>")

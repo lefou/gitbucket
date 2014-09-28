@@ -21,12 +21,14 @@ class ScalaPlugin(val id: String, val version: String,
   private val repositoryActionList = ListBuffer[RepositoryAction]()
   private val globalActionList     = ListBuffer[Action]()
   private val javaScriptList       = ListBuffer[JavaScript]()
+  private val rendererList         = ListBuffer[Renderer]()
 
   def repositoryMenus       : List[RepositoryMenu]   = repositoryMenuList.toList
   def globalMenus           : List[GlobalMenu]       = globalMenuList.toList
   def repositoryActions     : List[RepositoryAction] = repositoryActionList.toList
   def globalActions         : List[Action]           = globalActionList.toList
   def javaScripts           : List[JavaScript]       = javaScriptList.toList
+  override def renderers    : List[Renderer]         = rendererList.toList
 
   def addRepositoryMenu(label: String, name: String, url: String, icon: String)(condition: (Context) => Boolean): Unit = {
     repositoryMenuList += RepositoryMenu(label, name, url, icon, condition)
@@ -46,6 +48,10 @@ class ScalaPlugin(val id: String, val version: String,
 
   def addJavaScript(filter: String => Boolean, script: String): Unit = {
     javaScriptList += JavaScript(filter, script)
+  }
+  
+  def addRenderer(renderer: Renderer): Unit = {
+    rendererList += renderer
   }
 
 }
