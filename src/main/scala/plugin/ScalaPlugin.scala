@@ -7,10 +7,6 @@ import plugin.PluginSystem._
 import plugin.PluginSystem.RepositoryMenu
 import plugin.Security._
 import service.RepositoryService.RepositoryInfo
-import scala.reflect.runtime.currentMirror
-import scala.tools.reflect.ToolBox
-import play.twirl.compiler.TwirlCompiler
-import scala.io.Codec
 
 // TODO This is a sample implementation for Scala based plug-ins.
 class ScalaPlugin(val id: String, val version: String,
@@ -48,30 +44,4 @@ class ScalaPlugin(val id: String, val version: String,
     javaScriptList += JavaScript(filter, script)
   }
 
-}
-
-object ScalaPlugin {
-
-  def define(id: String, version: String, author: String, url: String, description: String)
-    = new ScalaPlugin(id, version, author, url, description)
-
-  def eval(source: String): Any = {
-    val toolbox = currentMirror.mkToolBox()
-    val tree = toolbox.parse(source)
-    toolbox.eval(tree)
-  }
-
-  def compileTemplate(packageName: String, name: String, source: String): String = {
-    val result = TwirlCompiler.parseAndGenerateCodeNewParser(
-      Array(packageName, name),
-      source.getBytes("UTF-8"),
-      Codec(scala.util.Properties.sourceEncoding),
-      "",
-      "play.twirl.api.HtmlFormat.Appendable",
-      "play.twirl.api.HtmlFormat",
-      "",
-      false)
-
-    result.replaceFirst("package .*", "")
-  }
 }
