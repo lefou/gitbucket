@@ -10,10 +10,11 @@ import Security._
 import service.PluginService
 import model.Profile._
 import profile.simple._
-import java.io.FileInputStream
+import java.io.{File, FilenameFilter, FileInputStream}
 import java.sql.Connection
 import app.Context
 import service.RepositoryService.RepositoryInfo
+import java.net.URLClassLoader
 
 /**
  * Provides extension points to plug-ins.
@@ -24,10 +25,28 @@ object PluginSystem extends PluginService {
 
   private val initialized = new AtomicBoolean(false)
   private val pluginsMap = scala.collection.mutable.Map[String, Plugin]()
-  private val repositoriesList = scala.collection.mutable.ListBuffer[PluginRepository]()
+//  private val repositoriesList = scala.collection.mutable.ListBuffer[PluginRepository]()
 
-  def install(plugin: Plugin): Unit = {
-    pluginsMap.put(plugin.id, plugin)
+  def initialize()(implicit session: Session): Unit = {
+    if(initialized.compareAndSet(false, true)){
+      new java.io.File(PluginHome).listFiles(new FilenameFilter {
+        override def accept(dir: File, name: String): Boolean = name.endsWith(".jar")
+      }).foreach { file =>
+        val cl = new URLClassLoader(Array(file.toURI.toURL), Thread.currentThread.getContextClassLoader)
+        val plugin = cl.loadClass("Plugin").asInstanceOf[Plugin]
+        pluginsMap.put(plugin.id, plugin)
+
+        // Migrate database
+        getPlugin(plugin.id) match {
+          case None =>
+            registerPlugin(model.Plugin(plugin.id, plugin.version))
+            migrate(session.conn, plugin.id, "0.0")
+          case Some(x) =>
+            updatePlugin(model.Plugin(plugin.id, plugin.version))
+            migrate(session.conn, plugin.id, plugin.version)
+        }
+      }
+    }
   }
 
   def plugins: List[Plugin] = pluginsMap.values.toList
@@ -49,74 +68,72 @@ object PluginSystem extends PluginService {
     }
   }
 
-  def repositories: List[PluginRepository] = repositoriesList.toList
+//  /**
+//   * Initializes the plugin system. Load scripts from GITBUCKET_HOME/plugins.
+//   */
+//  def init()(implicit session: Session): Unit = {
+//    if(initialized.compareAndSet(false, true)){
+//      // Load installed plugins
+//      val pluginDir = new java.io.File(PluginHome)
+//      if(pluginDir.exists && pluginDir.isDirectory){
+//        pluginDir.listFiles.filter(f => f.isDirectory && !f.getName.startsWith(".")).foreach { dir =>
+//          installPlugin(dir.getName)
+//        }
+//      }
+//      // Add default plugin repositories
+//      repositoriesList += PluginRepository("central", "https://github.com/takezoe/gitbucket_plugins.git")
+//    }
+//  }
 
-  /**
-   * Initializes the plugin system. Load scripts from GITBUCKET_HOME/plugins.
-   */
-  def init()(implicit session: Session): Unit = {
-    if(initialized.compareAndSet(false, true)){
-      // Load installed plugins
-      val pluginDir = new java.io.File(PluginHome)
-      if(pluginDir.exists && pluginDir.isDirectory){
-        pluginDir.listFiles.filter(f => f.isDirectory && !f.getName.startsWith(".")).foreach { dir =>
-          installPlugin(dir.getName)
-        }
-      }
-      // Add default plugin repositories
-      repositoriesList += PluginRepository("central", "https://github.com/takezoe/gitbucket_plugins.git")
-    }
-  }
-
-  // TODO Method name seems to not so good.
-  def installPlugin(id: String)(implicit session: Session): Unit = {
-    val pluginHome = new java.io.File(PluginHome)
-    val pluginDir  = new java.io.File(pluginHome, id)
-
-    val scalaFile = new java.io.File(pluginDir, "plugin.scala")
-    if(scalaFile.exists && scalaFile.isFile){
-      val properties = new java.util.Properties()
-      using(new java.io.FileInputStream(new java.io.File(pluginDir, "plugin.properties"))){ in =>
-        properties.load(in)
-      }
-
-      val pluginId     = properties.getProperty("id")
-      val version      = properties.getProperty("version")
-      val author       = properties.getProperty("author")
-      val url          = properties.getProperty("url")
-      val description  = properties.getProperty("description")
-
-      val source = s"""
-        |val id          = "${pluginId}"
-        |val version     = "${version}"
-        |val author      = "${author}"
-        |val url         = "${url}"
-        |val description = "${description}"
-      """.stripMargin + FileUtils.readFileToString(scalaFile, "UTF-8")
-
-      try {
-        // Compile and eval Scala source code
-        ScalaPlugin.eval(pluginDir.listFiles.filter(_.getName.endsWith(".scala.html")).map { file =>
-          ScalaPlugin.compileTemplate(
-            id.replaceAll("-", ""),
-            file.getName.replaceAll("\\.scala\\.html$", ""),
-            IOUtils.toString(new FileInputStream(file)))
-        }.mkString("\n") + source)
-
-        // Migrate database
-        val plugin = getPlugin(pluginId)
-        if(plugin.isEmpty){
-          registerPlugin(model.Plugin(pluginId, version))
-          migrate(session.conn, pluginId, "0.0")
-        } else {
-          updatePlugin(model.Plugin(pluginId, version))
-          migrate(session.conn, pluginId, plugin.get.version)
-        }
-      } catch {
-        case e: Throwable => logger.warn(s"Error in plugin loading for ${scalaFile.getAbsolutePath}", e)
-      }
-    }
-  }
+//  // TODO Method name seems to not so good.
+//  def installPlugin(id: String)(implicit session: Session): Unit = {
+//    val pluginHome = new java.io.File(PluginHome)
+//    val pluginDir  = new java.io.File(pluginHome, id)
+//
+//    val scalaFile = new java.io.File(pluginDir, "plugin.scala")
+//    if(scalaFile.exists && scalaFile.isFile){
+//      val properties = new java.util.Properties()
+//      using(new java.io.FileInputStream(new java.io.File(pluginDir, "plugin.properties"))){ in =>
+//        properties.load(in)
+//      }
+//
+//      val pluginId     = properties.getProperty("id")
+//      val version      = properties.getProperty("version")
+//      val author       = properties.getProperty("author")
+//      val url          = properties.getProperty("url")
+//      val description  = properties.getProperty("description")
+//
+//      val source = s"""
+//        |val id          = "${pluginId}"
+//        |val version     = "${version}"
+//        |val author      = "${author}"
+//        |val url         = "${url}"
+//        |val description = "${description}"
+//      """.stripMargin + FileUtils.readFileToString(scalaFile, "UTF-8")
+//
+//      try {
+//        // Compile and eval Scala source code
+//        ScalaPlugin.eval(pluginDir.listFiles.filter(_.getName.endsWith(".scala.html")).map { file =>
+//          ScalaPlugin.compileTemplate(
+//            id.replaceAll("-", ""),
+//            file.getName.replaceAll("\\.scala\\.html$", ""),
+//            IOUtils.toString(new FileInputStream(file)))
+//        }.mkString("\n") + source)
+//
+//        // Migrate database
+//        val plugin = getPlugin(pluginId)
+//        if(plugin.isEmpty){
+//          registerPlugin(model.Plugin(pluginId, version))
+//          migrate(session.conn, pluginId, "0.0")
+//        } else {
+//          updatePlugin(model.Plugin(pluginId, version))
+//          migrate(session.conn, pluginId, plugin.get.version)
+//        }
+//      } catch {
+//        case e: Throwable => logger.warn(s"Error in plugin loading for ${scalaFile.getAbsolutePath}", e)
+//      }
+//    }
+//  }
 
   // TODO Should PluginSystem provide a way to migrate resources other than H2?
   private def migrate(conn: Connection, pluginId: String, current: String): Unit = {

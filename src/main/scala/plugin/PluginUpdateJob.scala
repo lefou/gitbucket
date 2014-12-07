@@ -19,31 +19,31 @@ class PluginUpdateJob extends Job {
    * TODO Support plugin repository access through the proxy server
    */
   override def execute(context: JobExecutionContext): Unit = {
-    try {
-      if(failedCount > 3){
-        logger.error("Skip plugin information updating because failed count is over limit")
-      } else {
-        logger.info("Start plugin information updating")
-        PluginSystem.repositories.foreach { repository =>
-          logger.info(s"Updating ${repository.id}: ${repository.url}...")
-          val dir = getPluginCacheDir()
-          val repo = new java.io.File(dir, repository.id)
-          if(repo.exists){
-            // pull if the repository is already cloned
-            Git.open(repo).pull().call()
-          } else {
-            // clone if the repository is not exist
-            Git.cloneRepository().setURI(repository.url).setDirectory(repo).call()
-          }
-        }
-        logger.info("End plugin information updating")
-      }
-    } catch {
-      case e: Exception => {
-        failedCount = failedCount + 1
-        logger.error("Failed to update plugin information", e)
-      }
-    }
+//    try {
+//      if(failedCount > 3){
+//        logger.error("Skip plugin information updating because failed count is over limit")
+//      } else {
+//        logger.info("Start plugin information updating")
+//        PluginSystem.repositories.foreach { repository =>
+//          logger.info(s"Updating ${repository.id}: ${repository.url}...")
+//          val dir = getPluginCacheDir()
+//          val repo = new java.io.File(dir, repository.id)
+//          if(repo.exists){
+//            // pull if the repository is already cloned
+//            Git.open(repo).pull().call()
+//          } else {
+//            // clone if the repository is not exist
+//            Git.cloneRepository().setURI(repository.url).setDirectory(repo).call()
+//          }
+//        }
+//        logger.info("End plugin information updating")
+//      }
+//    } catch {
+//      case e: Exception => {
+//        failedCount = failedCount + 1
+//        logger.error("Failed to update plugin information", e)
+//      }
+//    }
   }
 }
 

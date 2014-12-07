@@ -230,11 +230,11 @@ class AutoUpdateListener extends ServletContextListener {
       getDatabase(context).withSession { implicit session =>
         logger.debug("Starting plugin system...")
         try {
-          plugin.PluginSystem.init()
+          plugin.PluginSystem.initialize()
 
-          scheduler.start()
-          PluginUpdateJob.schedule(scheduler)
-          logger.debug("PluginUpdateJob is started.")
+//          scheduler.start()
+//          PluginUpdateJob.schedule(scheduler)
+//          logger.debug("PluginUpdateJob is started.")
 
           logger.debug("Plugin system is initialized.")
         } catch {
